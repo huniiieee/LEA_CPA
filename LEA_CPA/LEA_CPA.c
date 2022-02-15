@@ -339,7 +339,7 @@ void LEA_CPA(FILE* pt, FILE* trace, unsigned int Total_Point)
 }
 #endif
 
-//오른쪽으로 3비트 순환이동
+//오른쪽으로 9비트 순환이동
 word ROR9(word text)
 {
 	return (text >> 9) ^ ((text & 0x1ff) << 23);
@@ -362,8 +362,17 @@ void LEA_CPA(FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
 	//carry
 	byte carry = 0;
 
+	//borrow
+	byte borrow = 0;
+
+	//중간값 계산하기 위한 임시 byte
+	byte temp1 = 0;
+	byte temp2 = 0;
+	word temp3 = 0;
+
 	//평문 1바이트 불러오기
 	byte Plain1 = 0;
+
 
 	//암호문 1바이트 불러오기
 	byte Cipher1 = 0;
@@ -371,6 +380,7 @@ void LEA_CPA(FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
 
 	//암호문 4바이트 일기
 	word Cipher4 = 0;
+	word Cipher4_1 = 0;
 
 	//파형 포인트 읽을 임시변수
 	float F_Temp = 0.0;
@@ -424,6 +434,7 @@ void LEA_CPA(FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
 		for (__int64 tn = 0; tn < Trace_Num; tn++)
 		{
 			Cipher4 = 0;
+			Cipher4_1 = 0;
 			for (int j = 0; j < 4; j++)
 			{
 				fscanf_s(ct, "%hhx", &Cipher1);
@@ -431,10 +442,13 @@ void LEA_CPA(FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
 			}
 			
 			_fseeki64(ct, (__int64)8 * (__int64)3, SEEK_CUR);
-			fscanf_s(ct, "%hhx", &Cipher1_1);
-			_fseeki64(ct, (__int64)3 * (__int64)3 + (__int64)2, SEEK_CUR);
+			for (int j = 0; j < 4; j++)
+			{
+				fscanf_s(ct, "%hhx", &Cipher1);
+				Cipher4_1 += ((word)Cipher1 << (8 * j));
+			}
+			_fseeki64(ct, (__int64)2, SEEK_CUR);
 			Cipher4 = ROR9(Cipher4);
-			Cipher1 = (byte)(Cipher4 & 0xff);
 
 			for (__int64 point = 0; point < Point_Num; point++)
 			{
@@ -446,9 +460,31 @@ void LEA_CPA(FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
 			}
 			_fseeki64(trace, ((__int64)Total_Point - (__int64)End_Point + (__int64)Start_Point - (__int64)1) * (__int64)4, SEEK_CUR);
 
+			/*temp1 = (byte)Cipher4;
+			temp2 = (byte)(Cipher4_1);
+			temp2 ^= 0x9a;
+			if (temp1 < temp2)
+				borrow = 1;
+			else
+				borrow = 0;
+			printf("%d", borrow);*/
 			for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
 			{
-				mid = Cipher1 - (Cipher1_1 ^ (byte)guess_key);
+				//첫번 째 바이트
+
+				//temp3 = guess_key << 8;
+				//temp3 = temp3 ^ 0x9a;
+		
+				//mid = (byte)((Cipher4 - (Cipher4_1 ^ temp3))>>8);
+				//hw = (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
+				//mid = (byte)(Cipher4 - (Cipher4_1 ^ temp3));
+				//hw = hw + (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
+				//두번 째 바이트
+				temp1 = (byte)(Cipher4 >> 8);
+				temp2 = (byte)(Cipher4_1 >> 8);
+				temp2 = temp2 ^ guess_key;
+				mid = temp1 - temp2;
+
 				hw = (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
 				HW_BYTES[guess_key] += (__int64)hw;
 				HWW_BYTES[guess_key] += (__int64)(hw * hw);
@@ -463,7 +499,6 @@ void LEA_CPA(FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
 		max_key = 0.0;
 		for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
 		{
-			printf("%d", guess_key);
 			max_cor = 0.0;
 			for (__int64 point = 0; point < Point_Num; point++)
 			{

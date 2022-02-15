@@ -7,10 +7,10 @@
 *평문 이름
 */
 
-#define Folder_Path "C:\\Users\\leesehun\\chipwhisperer\\projects\\tmp\\default_data\\traces_23"
-#define Trace_Path "2022.01.25-16.09.14-2022.01.25-16.09.14_1000tr_3740pt"
-#define Plain_Path "2022.01.25-16.09.14-2022.01.25-16.09.14_1000tr_3740pt_plain"
-#define Cipher_Path "2022.01.25-16.09.14-2022.01.25-16.09.14_1000tr_3740pt_cipher"
+#define Folder_Path "E:\\ohman"
+#define Trace_Path "trace1"
+#define Plain_Path "plain"
+#define Cipher_Path "cipher"
 
 /*
 * 분석할 파형 수
@@ -18,10 +18,10 @@
 * 분석 종료 포인트 수
 * 총 분석 포인트 수
 */
-#define Trace_Num 1000
+#define Trace_Num 50000
 #define Start_Point 1
-#define End_Point  3740
-#define Point_Num 3740
+#define End_Point  3896
+#define Point_Num 3896
 
 /*----------------------------------------------------------------------------------*/
 /*  분석 시작할 키																	*/

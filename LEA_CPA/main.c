@@ -6,7 +6,7 @@ int main()
 	FILE* trace = NULL;
 	FILE* ct = NULL;
 	char FILE_MERGE[_FILE_NAME_SIZE_] = "";
-	// 
+	
 	sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%s.trace", Folder_Path, Trace_Path);
 	fopen_s(&trace, FILE_MERGE, "rb");
 	if (trace == NULL) {
@@ -38,6 +38,7 @@ int main()
 
 	Point_Verify(&Points, &Trace);
 	LEA_CPA(pt, trace,ct, Points);
+	
 
 	fclose(pt);
 	fclose(ct);
