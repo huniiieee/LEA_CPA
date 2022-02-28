@@ -7,10 +7,10 @@
 *평문 이름
 */
 
-#define Folder_Path "E:\\ohman"
-#define Trace_Path "trace1"
-#define Plain_Path "plain"
-#define Cipher_Path "cipher"
+#define Folder_Path "E:\LEA_8bit_add_3000_traces"
+#define Trace_Path "2022.02.28-10.51.27-2022.02.28-10.51.27_3000tr_23828pt"
+#define Plain_Path "2022.02.28-10.51.27-2022.02.28-10.51.27_3000tr_23828pt_plain"
+#define Cipher_Path "2022.02.28-10.51.27-2022.02.28-10.51.27_3000tr_23828pt_cipher"
 
 /*
 * 분석할 파형 수
@@ -18,10 +18,10 @@
 * 분석 종료 포인트 수
 * 총 분석 포인트 수
 */
-#define Trace_Num 50000
+#define Trace_Num 500
 #define Start_Point 1
-#define End_Point  3896
-#define Point_Num 3896
+#define End_Point  23828
+#define Point_Num 23828
 
 /*----------------------------------------------------------------------------------*/
 /*  분석 시작할 키																	*/
@@ -29,6 +29,11 @@
 /*----------------------------------------------------------------------------------*/
 #define Guess_Key_Start				0
 #define Guess_Key_Num				256
+
+/*
+* 후보키 개수
+*/
+#define Candidates 5
 
 typedef struct {
 	unsigned char strID[20];
@@ -50,7 +55,7 @@ typedef struct {
 typedef uint8_t byte;
 typedef uint32_t word;
 void Point_Verify(unsigned int* POINTS, unsigned int* TRACE_NUM);
-void LEA_CPA(FILE* pt, FILE* trace,FILE* ct, unsigned int Total_Point);
+void LEA_CPA(struct tm* Time, FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point);
 word ROR9(word text);
 
 #endif
