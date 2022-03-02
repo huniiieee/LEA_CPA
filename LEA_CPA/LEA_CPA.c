@@ -199,6 +199,9 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 	double* Max = NULL;
 	double* Temp_Points = NULL;
 
+	//Borrow
+	byte** Borrow = NULL;
+
 	//올바른 바이트 키
 	word Key = 0;
 	
@@ -237,6 +240,10 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 	__int64 key_can = 0;
 	__int64 sec_key = 0.;
 
+	Borrow = (byte**)malloc(Trace_Num * sizeof(byte*));
+	for (int i = 0; i < Trace_Num; i++)
+		Borrow[i] = (byte*)malloc(Guess_Key_Num * sizeof(byte));
+
 	HW_BYTES = (__int64*)malloc(Guess_Key_Num * sizeof(__int64));
 	HWW_BYTES = (__int64*)malloc(Guess_Key_Num * sizeof(__int64));
 
@@ -249,10 +256,17 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 	for (unsigned int i = 0; i < Guess_Key_Num; i++)
 		HW_TR[i] = (double*)malloc((unsigned int)Point_Num * sizeof(double));
 
+	//Borrow값 초기화
+	for (int i = 0; i < Trace_Num; i++)
+	{
+		for (int j = 0; j < Guess_Key_Num; j++)
+			Borrow[i][j] = 0;
+	}
+#if File_out==1
 	// 결과 저장할 폴더 생성
 	sprintf_s(FOLD_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%04d_%02d_%02d_%02d_%02d_%02d", Folder_Path, Time->tm_year + 1900, Time->tm_mon + 1, Time->tm_mday, Time->tm_hour, Time->tm_min, Time->tm_sec);
 	_mkdir(FOLD_MERGE);
-
+#endif
 	//RK[23] 키 추측
 	for (int _byte_ = 0; _byte_ < 4; _byte_++)
 	{
@@ -272,6 +286,7 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 			for (unsigned int guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
 				HW_TR[guess_key][point] = 0.0;
 		}
+
 		_fseeki64(ct, 0, SEEK_SET);
 		_fseeki64(trace, (__int64)32 + ((__int64)Start_Point - (__int64)1) * (__int64)4, SEEK_SET);
 		for (__int64 tn = 0; tn < Trace_Num; tn++)
@@ -283,7 +298,7 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 				fscanf_s(ct, "%hhx", &Cipher1);
 				Cipher4 += ((word)Cipher1 << (8 * j));
 			}
-			
+
 			_fseeki64(ct, (__int64)8 * (__int64)3, SEEK_CUR);
 			for (int j = 0; j < 4; j++)
 			{
@@ -308,10 +323,16 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 			{
 				//첫번 째 바이트
 
-				temp = guess_key << (8*_byte_);
+				temp = guess_key << (8 * _byte_);
 				temp ^= Key;
-				mid = (byte)((Cipher4 - (Cipher4_1 ^temp))>>(8*_byte_));
-	
+				mid = (byte)((Cipher4 - (Cipher4_1 ^ temp)) >> (8 * _byte_));
+				mid = mid - Borrow[tn][guess_key];
+
+				if ((byte)(Cipher4 >> (8 * _byte_)) <= mid)
+					Borrow[tn][guess_key] = 1;
+				else
+					Borrow[tn][guess_key] = 0;
+
 				hw = (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
 				HW_BYTES[guess_key] += (__int64)hw;
 				HWW_BYTES[guess_key] += (__int64)(hw * hw);
@@ -322,6 +343,7 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 				}
 			}
 		}
+#if File_out==1
 
 		//결과출력 파일
 		sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%d", FOLD_MERGE, _byte_ + 1);
@@ -372,12 +394,12 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 		fopen_s(&fp2, FILE_MERGE, "w");
 
 		max_cor = 0;
-		for (__int64 guess_key  = 0; guess_key < Guess_Key_Num; guess_key++) {
+		for (__int64 guess_key = 0; guess_key < Guess_Key_Num; guess_key++) {
 			fprintf_s(fp, "%f\n", Max[guess_key]);
 
 			if (max_cor < Max[guess_key]) {
 				max_cor = Max[guess_key];
-				key_can=guess_key;
+				key_can = guess_key;
 			}
 		}
 		Key ^= key_can << (8 * _byte_);
@@ -388,7 +410,7 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 
 		Max[key_can] = 0.0;
 
-		for (int i = 1; i < Candidates ; i++) {
+		for (int i = 1; i < Candidates; i++) {
 			for (__int64 guess_key = 0; guess_key < Guess_Key_Num; guess_key++) {
 				if (sec_cor < Max[guess_key]) {
 					sec_cor = Max[guess_key];
@@ -397,7 +419,7 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 			}
 
 			if (i == 1) {
-				fprintf_s(fp2, "  2nd  0x%02X  %f\n",sec_key, sec_cor);
+				fprintf_s(fp2, "  2nd  0x%02X  %f\n", sec_key, sec_cor);
 				Ratio = max_cor / sec_cor;
 			}
 			else if (i == 2) {
@@ -415,10 +437,38 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 		fprintf_s(fp2, "\nRatio  %f\n", Ratio);
 
 		fclose(fp2);
-		/*printf("\n 0번째 후보 RK[23]==>>>%08x %f\n", key_can, max_key);
-		
-		Max[key_can] = 0.0;
+#else 
+		max_key = 0.0;
+		for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
+		{
+			max_cor = 0.0;
+			for (__int64 point = 0; point < Point_Num; point++)
+			{
+				corr_m = (double)Trace_Num * HW_TR[guess_key][point] - (double)HW_BYTES[guess_key] * TR_POINTS[point];
+				corr_d = ((double)Trace_Num * (double)HWW_BYTES[guess_key] - (double)HW_BYTES[guess_key] * (double)HW_BYTES[guess_key]) * ((double)Trace_Num * TRR_POINTS[point] - TR_POINTS[point] * TR_POINTS[point]);
+				if (corr_d <= (double)0)
+					corr = 0.0;
+				else
+				{
+					corr = corr_m / sqrt(corr_d);
+					corr = fabs(corr);
+				}
+				if (corr > max_cor)
+				{
+					max_cor = corr;
+					Max[guess_key] = max_cor;
+				}
+			}
+			if (Max[guess_key] > max_key)
+			{
+				max_key = Max[guess_key];
+				key_can = guess_key;
+			}
 
+		}
+		Key ^= key_can << (8 * _byte_);
+		printf("\n 0번째 후보 RK[23]==>>>%08x %f\n", key_can, max_key);
+		Max[key_can] = 0.0;
 		for (int i = 0; i < 10; i++)
 		{
 			max_key = 0.0;
@@ -432,14 +482,12 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 			}
 			printf("\n %d번째 후보 RK[23] ==>>>%08x %f\n", i + 1, key_can, max_key);
 			Max[key_can] = 0.0;
-		}*/
+		}
 
-
+#endif
+		
 	}
-
 	printf("Correct RK[23] is %08x", Key);
-
-
 	free(HW_BYTES);
 	free(HWW_BYTES);
 	free(TR_POINTS);

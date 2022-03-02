@@ -52,6 +52,9 @@ typedef struct {
 
 #define _FILE_NAME_SIZE_	1000
 
+//파일에 출력할지 창에 출력할지
+#define File_out 1
+
 typedef uint8_t byte;
 typedef uint32_t word;
 void Point_Verify(unsigned int* POINTS, unsigned int* TRACE_NUM);
