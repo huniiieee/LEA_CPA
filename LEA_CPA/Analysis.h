@@ -7,10 +7,20 @@
 *평문 이름
 */
 
-#define Folder_Path "E:\LEA_8bit_add_3000_traces"
-#define Trace_Path "2022.02.28-10.51.27-2022.02.28-10.51.27_3000tr_23828pt"
-#define Plain_Path "2022.02.28-10.51.27-2022.02.28-10.51.27_3000tr_23828pt_plain"
-#define Cipher_Path "2022.02.28-10.51.27-2022.02.28-10.51.27_3000tr_23828pt_cipher"
+//#define Folder_Path "E:\LEA_32bit_add_10000_traces"
+//#define Trace_Path "2022.03.02-12.47.51-2022.03.02-12.47.51_10000tr_488pt"
+//#define Plain_Path "2022.03.02-12.47.51-2022.03.02-12.47.51_10000tr_488pt_plain"
+//#define Cipher_Path "2022.03.02-12.47.51-2022.03.02-12.47.51_10000tr_488pt_cipher"
+
+#define Folder_Path "E:\\LEA_8bit_add_1000_traces"
+#define Trace_Path "2022.03.07-09.19.37-2022.03.07-09.19.37_1000tr_23828pt"
+#define Plain_Path "2022.03.07-09.19.37-2022.03.07-09.19.37_1000tr_23828pt_plain"
+#define Cipher_Path "2022.03.07-09.19.37-2022.03.07-09.19.37_1000tr_23828pt_cipher"
+
+#define Folder_Path2 "E:\\LEA_8bit_add_1000_traces_1ROUND"
+#define Trace_Path2 "2022.03.04-10.29.52-2022.03.04-10.29.52_1000tr_23824pt"
+#define Plain_Path2 "2022.03.04-10.29.52-2022.03.04-10.29.52_1000tr_23824pt_plain"
+#define Cipher_Path2 "2022.03.04-10.29.52-2022.03.04-10.29.52_1000tr_23824pt_cipher"
 
 /*
 * 분석할 파형 수
@@ -18,9 +28,9 @@
 * 분석 종료 포인트 수
 * 총 분석 포인트 수
 */
-#define Trace_Num 500
+#define Trace_Num 1000
 #define Start_Point 1
-#define End_Point  23828
+#define End_Point 23828
 #define Point_Num 23828
 
 /*----------------------------------------------------------------------------------*/
@@ -52,13 +62,25 @@ typedef struct {
 
 #define _FILE_NAME_SIZE_	1000
 
-//파일에 출력할지 창에 출력할지
-#define File_out 1
+/*
+* 파일에 출력할지 콘솔창에 출력할지
+* 1: 파일에 출력 0: 콘솔창에 출력
+*/
+#define File_out 0
+
+/*
+* 8비트 버젼 덧셈 파형 사용할지
+* 1: 8비트 버젼 0: 32비트 버젼
+*/
+#define Eight_bit_version 1
+
 
 typedef uint8_t byte;
 typedef uint32_t word;
 void Point_Verify(unsigned int* POINTS, unsigned int* TRACE_NUM);
-void LEA_CPA(struct tm* Time, FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point);
+void LEA_CPA(struct tm* Time, FILE* pt, FILE* trace, FILE* trace2, FILE* ct, unsigned int Total_Point);
 word ROR9(word text);
+word ROR(word text, int i);
+word ROL(word text, int n);
 
 #endif

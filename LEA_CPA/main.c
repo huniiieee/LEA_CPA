@@ -4,6 +4,7 @@ int main()
 {
 	FILE* pt = NULL;
 	FILE* trace = NULL;
+	FILE* trace2 = NULL;
 	FILE* ct = NULL;
 	char FILE_MERGE[_FILE_NAME_SIZE_] = "";
 
@@ -22,7 +23,16 @@ int main()
 		return;
 	}
 
-	sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%s.txt", Folder_Path, Plain_Path);
+	sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%s.trace", Folder_Path2, Trace_Path2);
+	fopen_s(&trace2, FILE_MERGE, "rb");
+	if (trace2 == NULL) {
+		printf(" -----------------------------------------------------------------------\n");
+		printf("|                          Failed To Read Trace                         |\n");
+		printf(" -----------------------------------------------------------------------\n");
+		return;
+	}
+
+	sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%s.txt", Folder_Path2, Plain_Path2);
 	fopen_s(&pt, FILE_MERGE, "r");
 	if (pt == NULL) {
 		printf(" -----------------------------------------------------------------------\n");
@@ -43,10 +53,8 @@ int main()
 	unsigned int Trace= 0;
 
 	Point_Verify(&Points, &Trace);
-	
-	LEA_CPA(&t,pt, trace,ct, Points);
 
-
+	LEA_CPA(&t,pt, trace,trace2,ct, Points);
 
 	fclose(pt);
 	fclose(ct);

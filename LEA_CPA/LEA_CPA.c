@@ -178,8 +178,23 @@ word ROR9(word text)
 	return (text >> 9) ^ ((text & 0x1ff) << 23);
 }
 
+word ROR(word text, int i)
+{
+	word tmp = 0;
+	for (int j = 0; j < i; j++)
+		tmp |= 1 << j;
+	return (text >> i) ^ ((text & tmp) << (32 - i));
+}
+
+word ROL(word text, int n)
+{
+	if (n == 0)
+		return text;
+	return (text >> (32 - n)) ^ (text << n);
+}
+
 #if 1 //암호문 사용해서 1바이트 추정하고 그거 가지고 덧셈중간값 사용해서 키찾기
-void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total_Point)
+void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace,FILE* trace2 ,FILE* ct, unsigned int Total_Point)
 {
 
 	char FOLD_MERGE[_FILE_NAME_SIZE_] = "";
@@ -201,15 +216,18 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 
 	//Borrow
 	byte** Borrow = NULL;
+	byte** Carry = NULL;
 
 	//올바른 바이트 키
 	word Key = 0;
-	
+	word Key1 = 0;
+
 	//임시변수
 	word temp = 0;
 
 	//평문 1바이트 불러오기
 	byte Plain1 = 0;
+	byte Plain2 = 0;
 
 
 	//암호문 1바이트 불러오기
@@ -244,6 +262,10 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 	for (int i = 0; i < Trace_Num; i++)
 		Borrow[i] = (byte*)malloc(Guess_Key_Num * sizeof(byte));
 
+	Carry = (byte**)malloc(Trace_Num * sizeof(byte*));
+	for (int i = 0; i < Trace_Num; i++)
+		Carry[i] = (byte*)malloc(Guess_Key_Num * sizeof(byte));
+
 	HW_BYTES = (__int64*)malloc(Guess_Key_Num * sizeof(__int64));
 	HWW_BYTES = (__int64*)malloc(Guess_Key_Num * sizeof(__int64));
 
@@ -261,6 +283,13 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 	{
 		for (int j = 0; j < Guess_Key_Num; j++)
 			Borrow[i][j] = 0;
+	}
+
+	//Carry값 초기화
+	for (int i = 0; i < Trace_Num; i++)
+	{
+		for (int j = 0; j < Guess_Key_Num; j++)
+			Carry[i][j] = 0;
 	}
 #if File_out==1
 	// 결과 저장할 폴더 생성
@@ -322,7 +351,7 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 			for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
 			{
 				//첫번 째 바이트
-
+#if Eight_bit_version 1
 				temp = guess_key << (8 * _byte_);
 				temp ^= Key;
 				mid = (byte)((Cipher4 - (Cipher4_1 ^ temp)) >> (8 * _byte_));
@@ -334,6 +363,17 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 					Borrow[tn][guess_key] = 0;
 
 				hw = (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
+#else 
+				temp = guess_key << (8 * _byte_);
+				temp ^= Key;
+				hw = 0;
+				for (int i = 0; i <= _byte_; i++)    
+				{
+					mid = (byte)((Cipher4 - (Cipher4_1 ^ temp)) >> (8 * i));
+					hw += (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);		
+				}
+#endif
+
 				HW_BYTES[guess_key] += (__int64)hw;
 				HWW_BYTES[guess_key] += (__int64)(hw * hw);
 
@@ -487,7 +527,244 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 #endif
 		
 	}
-	printf("Correct RK[23] is %08x", Key);
+
+	printf("Correct RK[23][0] is %08x\n", Key);
+	word RKC[8] = { 0xc3efe9db,0x44626b02,0x79e27c8a,0x78df30ec,0x715ea49e,0xc785da0a,0xe04ef22a,0xe5c40957 };
+	for (int i = 23; i > 0; i--)
+	{
+		Key = ROR(Key, 1) - ROL(RKC[i % 4], i);
+	}
+	printf("Correct RK[0][0] is %08x\n", Key);
+
+	//RK[1] 키 추측
+	for (int _byte_ = 0; _byte_ < 4; _byte_++)
+	{
+		//값 초기화
+		printf("-----%d번 째 바이트 분석-----\n", _byte_);
+		for (unsigned int guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
+		{
+			HW_BYTES[guess_key] = 0;
+			HWW_BYTES[guess_key] = 0;
+			Max[guess_key] = 0.0;
+		}
+
+		for (unsigned int point = 0; point < Point_Num; point++)
+		{
+			TR_POINTS[point] = 0.0;
+			TRR_POINTS[point] = 0.0;
+			for (unsigned int guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
+				HW_TR[guess_key][point] = 0.0;
+		}
+
+		_fseeki64(pt, 0, SEEK_SET);
+		_fseeki64(trace2, (__int64)32 + ((__int64)Start_Point - (__int64)1) * (__int64)4, SEEK_SET);
+		for (__int64 tn = 0; tn < Trace_Num; tn++)
+		{
+			Cipher4 = 0;
+			Cipher4_1 = 0;
+			for (int j = 0; j < 4; j++)
+			{
+				fscanf_s(pt, "%hhx", &Cipher1);
+				Cipher4 += ((word)Cipher1 << (8 * j));
+			}
+			
+			for (int j = 0; j < 4; j++)
+			{
+				fscanf_s(pt, "%hhx", &Cipher1);
+				Cipher4_1 += ((word)Cipher1 << (8 * j));
+			}
+	
+			_fseeki64(pt, (__int64)8 * (__int64)3 + (__int64)2, SEEK_CUR);
+
+			for (__int64 point = 0; point < Point_Num; point++)
+			{
+				fread(&F_Temp, sizeof(float), 1, trace2);
+				Temp_Points[point] = (double)F_Temp;
+
+				TR_POINTS[point] += Temp_Points[point];
+				TRR_POINTS[point] += Temp_Points[point] * Temp_Points[point];
+			}
+			_fseeki64(trace2, ((__int64)Total_Point - (__int64)End_Point + (__int64)Start_Point - (__int64)1) * (__int64)4, SEEK_CUR);
+
+			for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
+			{
+				//첫번 째 바이트
+#if Eight_bit_version 1
+				temp = guess_key << (8 * _byte_);
+				temp ^= Key1;
+				mid = (byte)(((Cipher4 ^ Key) + (Cipher4_1 ^ temp)) >> (8 * _byte_));
+				//mid = mid + Carry[tn][guess_key];
+
+				//if ((byte)((Cipher4 ^ Key) >> (8 * _byte_)) >= mid)
+				//	Carry[tn][guess_key] = 1;
+				//else
+				//	Carry[tn][guess_key] = 0;
+
+				hw = (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
+#else 
+				temp = guess_key << (8 * _byte_);
+				temp ^= Key;
+				hw = 0;
+				for (int i = 0; i <= _byte_; i++)
+				{
+					mid = (byte)((Cipher4 - (Cipher4_1 ^ temp)) >> (8 * i));
+					hw += (mid & 1) + ((mid >> 1) & 1) + ((mid >> 2) & 1) + ((mid >> 3) & 1) + ((mid >> 4) & 1) + ((mid >> 5) & 1) + ((mid >> 6) & 1) + ((mid >> 7) & 1);
+				}
+#endif
+
+				HW_BYTES[guess_key] += (__int64)hw;
+				HWW_BYTES[guess_key] += (__int64)(hw * hw);
+
+				for (__int64 point = 0; point < Point_Num; point++)
+				{
+					HW_TR[guess_key][point] += (double)hw * Temp_Points[point];
+				}
+			}
+		}
+#if File_out==1
+
+		//결과출력 파일
+		sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%d", FOLD_MERGE, _byte_ + 1);
+		_mkdir(FILE_MERGE);
+
+		max_key = 0.0;
+		for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
+		{
+			sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%d\\%03d(0x%02X).txt", FOLD_MERGE, _byte_ + 1, guess_key + Guess_Key_Start, guess_key + Guess_Key_Start);
+			fopen_s(&fp, FILE_MERGE, "w");
+
+			max_cor = 0.0;
+			for (__int64 point = 0; point < Point_Num; point++)
+			{
+				corr_m = (double)Trace_Num * HW_TR[guess_key][point] - (double)HW_BYTES[guess_key] * TR_POINTS[point];
+				corr_d = ((double)Trace_Num * (double)HWW_BYTES[guess_key] - (double)HW_BYTES[guess_key] * (double)HW_BYTES[guess_key]) * ((double)Trace_Num * TRR_POINTS[point] - TR_POINTS[point] * TR_POINTS[point]);
+				if (corr_d <= (double)0)
+					corr = 0.0;
+				else
+				{
+					corr = corr_m / sqrt(corr_d);
+					corr = fabs(corr);
+				}
+
+				fprintf_s(fp, "%f\n", corr);
+
+				if (corr > max_cor)
+				{
+					max_cor = corr;
+					Max[guess_key] = max_cor;
+				}
+			}
+			if (Max[guess_key] > max_key)
+			{
+				max_key = Max[guess_key];
+				key_can = guess_key;
+			}
+
+			fclose(fp);
+		}
+
+		// Guess Key Peak 저장
+		sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%d_GUESS_KEY_PEAK.txt", FOLD_MERGE, _byte_ + 1);
+		fopen_s(&fp, FILE_MERGE, "w");
+
+		// 최종 분석 키 저장
+		sprintf_s(FILE_MERGE, _FILE_NAME_SIZE_ * sizeof(char), "%s\\%d_RIGHT_KEY.txt", FOLD_MERGE, _byte_ + 1);
+		fopen_s(&fp2, FILE_MERGE, "w");
+
+		max_cor = 0;
+		for (__int64 guess_key = 0; guess_key < Guess_Key_Num; guess_key++) {
+			fprintf_s(fp, "%f\n", Max[guess_key]);
+
+			if (max_cor < Max[guess_key]) {
+				max_cor = Max[guess_key];
+				key_can = guess_key;
+			}
+		}
+		Key ^= key_can << (8 * _byte_);
+
+		fclose(fp);
+
+		fprintf_s(fp2, "  1st  0x%02X  %f\n", key_can, max_cor);
+
+		Max[key_can] = 0.0;
+
+		for (int i = 1; i < Candidates; i++) {
+			for (__int64 guess_key = 0; guess_key < Guess_Key_Num; guess_key++) {
+				if (sec_cor < Max[guess_key]) {
+					sec_cor = Max[guess_key];
+					sec_key = guess_key;
+				}
+			}
+
+			if (i == 1) {
+				fprintf_s(fp2, "  2nd  0x%02X  %f\n", sec_key, sec_cor);
+				Ratio = max_cor / sec_cor;
+			}
+			else if (i == 2) {
+				fprintf_s(fp2, "  3rd  0x%02X  %f\n", sec_key, sec_cor);
+			}
+			else {
+				fprintf_s(fp2, "%3dth  0x%02X  %f\n", i + 1, sec_key, sec_cor);
+			}
+
+			Max[sec_key] = 0.0;
+			sec_cor = 0.0;
+			sec_key = 0;
+		}
+
+		fprintf_s(fp2, "\nRatio  %f\n", Ratio);
+
+		fclose(fp2);
+#else 
+		max_key = 0.0;
+		for (__int64 guess_key = Guess_Key_Start; guess_key < Guess_Key_Start + Guess_Key_Num; guess_key++)
+		{
+			max_cor = 0.0;
+			for (__int64 point = 0; point < Point_Num; point++)
+			{
+				corr_m = (double)Trace_Num * HW_TR[guess_key][point] - (double)HW_BYTES[guess_key] * TR_POINTS[point];
+				corr_d = ((double)Trace_Num * (double)HWW_BYTES[guess_key] - (double)HW_BYTES[guess_key] * (double)HW_BYTES[guess_key]) * ((double)Trace_Num * TRR_POINTS[point] - TR_POINTS[point] * TR_POINTS[point]);
+				if (corr_d <= (double)0)
+					corr = 0.0;
+				else
+				{
+					corr = corr_m / sqrt(corr_d);
+					corr = fabs(corr);
+				}
+				if (corr > max_cor)
+				{
+					max_cor = corr;
+					Max[guess_key] = max_cor;
+				}
+			}
+			if (Max[guess_key] > max_key)
+			{
+				max_key = Max[guess_key];
+				key_can = guess_key;
+			}
+
+		}
+		Key1 ^= key_can << (8 * _byte_);
+		printf("\n 0번째 후보 RK[23]==>>>%08x %f\n", key_can, max_key);
+		Max[key_can] = 0.0;
+		for (int i = 0; i < 10; i++)
+		{
+			max_key = 0.0;
+			for (int j = 0; j < Guess_Key_Num; j++)
+			{
+				if (Max[j] > max_key)
+				{
+					max_key = Max[j];
+					key_can = j;
+				}
+			}
+			printf("\n %d번째 후보 RK[23] ==>>>%08x %f\n", i + 1, key_can, max_key);
+			Max[key_can] = 0.0;
+		}
+	}
+#endif
+	printf("Correct RK[0][1] is %08x\n", Key1);
+
 	free(HW_BYTES);
 	free(HWW_BYTES);
 	free(TR_POINTS);
@@ -497,6 +774,12 @@ void LEA_CPA(struct tm* Time,FILE* pt, FILE* trace, FILE* ct, unsigned int Total
 	for (unsigned int i = 0; i < Guess_Key_Num; i++)
 		free(HW_TR[i]);
 	free(HW_TR);
+	for (unsigned int i = 0; i < Trace_Num; i++)
+		free(Borrow[i]);
+	for (unsigned int i = 0; i < Trace_Num; i++)
+		free(Carry[i]);
+	free(Borrow);
+	free(Carry);
 
 }
 #endif
